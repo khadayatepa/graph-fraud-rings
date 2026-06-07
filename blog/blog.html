@@ -1,0 +1,79 @@
+<!-- WordPress-ready. Paste into a "Custom HTML" block. Upload ring-graph.png and
+     summary.png from this folder to your Media Library. Edit the byline.
+     Theme: graph "investigation" — violet, dark accents. -->
+<div class="ace-fraud-post" style="max-width:840px;margin:0 auto;line-height:1.7;font-size:17px;color:#1f1b2e;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+  <div style="background:#15131f;border-radius:12px;padding:24px 26px;margin-bottom:24px;">
+    <div style="font-size:13px;letter-spacing:1px;color:#c4b5fd;">🕸️ FRAUD RINGS · ORACLE 26ai</div>
+    <h1 style="font-size:1.9em;line-height:1.3;margin:10px 0 6px;color:#fff;">Catching Money‑Laundering Rings with Graph Queries + AI Vector Search</h1>
+    <p style="margin:0;color:#a89fc0;">Two signals, one database: who moves money in circles, and who <em>looks</em> like known fraud.</p>
+  </div>
+
+  <p>A single suspicious transfer rarely proves much. A <strong>ring</strong> — money moving A→B→C→A in round‑number hops — is a classic laundering pattern. The trouble is that one signal alone gives false positives: plenty of legitimate businesses pay each other in loops. So I combine <strong>two</strong> signals in Oracle&nbsp;26ai: the <em>structure</em> (a cycle in the transfer graph) and the <em>semantics</em> (do these accounts read like known fraud?).</p>
+
+  <figure style="margin:22px 0;text-align:center;">
+    <img src="ring-graph.png" alt="A detected ring: Shell Holdings to Quartz Trading to Nimbus LLC and back, moving $250k/$245k/$240k in a loop; all three sit close to known fraud (distances ~0.3-0.4), while legitimate accounts form no cycle and are far (~0.6-0.7)" style="max-width:100%;height:auto;border-radius:10px;" />
+    <figcaption style="font-size:14px;color:#6b7280;font-style:italic;margin-top:8px;">The cycle is the structure; the distances are the semantics. Both point at the same three accounts.</figcaption>
+  </figure>
+
+  <h2 style="color:#7c3aed;margin-top:32px;">Signal 1 — find the cycles (recursive SQL)</h2>
+  <p>A recursive query walks the transfer graph and keeps any path that returns to where it started. It runs as any user — no special privilege:</p>
+  <pre style="background:#1b1830;color:#e7e2f5;padding:15px;border-radius:10px;overflow:auto;font-size:13px;"><code>WITH paths (start_acct, cur_acct, depth, pth) AS (
+  SELECT from_acct, to_acct, 1, '-'||from_acct||'-'||to_acct||'-' FROM transfers
+  UNION ALL
+  SELECT p.start_acct, t.to_acct, p.depth+1, p.pth||t.to_acct||'-'
+  FROM paths p JOIN transfers t ON t.from_acct = p.cur_acct
+  WHERE p.depth &lt; 5
+    AND (t.to_acct = p.start_acct OR INSTR(p.pth, '-'||t.to_acct||'-') = 0))
+SELECT pth FROM paths WHERE cur_acct = start_acct;   -- rows that close the loop</code></pre>
+
+  <p style="background:#f3effe;border-left:4px solid #7c3aed;border-radius:8px;padding:12px 16px;font-size:15px;">💡 <strong>The elegant alternative:</strong> Oracle 26ai's <strong>SQL Property Graph</strong> expresses the same thing declaratively — <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">MATCH (a)-&gt;(b)-&gt;(c)-&gt;(a)</code>. It needs the <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">CREATE PROPERTY GRAPH</code> privilege (<code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">GRANT CREATE PROPERTY GRAPH TO &lt;user&gt;</code>):</p>
+  <pre style="background:#1b1830;color:#e7e2f5;padding:15px;border-radius:10px;overflow:auto;font-size:13px;"><code>SELECT * FROM GRAPH_TABLE (money
+  MATCH (a)-[]-&gt;(b)-[]-&gt;(c)-[]-&gt;(a)
+  COLUMNS (a.name, b.name, c.name));</code></pre>
+
+  <h2 style="color:#7c3aed;margin-top:32px;">Signal 2 — confirm with AI Vector Search</h2>
+  <p>Each account has a short profile embedded as a vector. How close is it, by meaning, to profiles of <em>known</em> fraud?</p>
+  <pre style="background:#1b1830;color:#e7e2f5;padding:15px;border-radius:10px;overflow:auto;font-size:13px;"><code>SELECT a.name,
+       MIN(VECTOR_DISTANCE(a.embedding, k.embedding, COSINE)) AS fraud_dist
+FROM   accounts a, known_fraud k
+GROUP  BY a.name
+ORDER  BY fraud_dist;     -- ring members ~0.3-0.4, legit businesses ~0.6-0.7</code></pre>
+  <p>The ring members cluster near known fraud; the legitimate businesses sit far away. <strong>Cycle + closeness = a ring worth investigating.</strong></p>
+
+  <h2 style="color:#7c3aed;margin-top:32px;">The write-up</h2>
+  <p>Finally, an LLM turns the finding into an analyst's note with a recommended next step — advisory only, nothing is changed:</p>
+  <figure style="margin:22px 0;text-align:center;">
+    <img src="summary.png" alt="Top suspected ring summary: Shell Holdings to Quartz Trading to Nimbus LLC, $735,000 cycled, avg fraud distance 0.361, with an LLM recommendation to run a forensic analysis of beneficial ownership" style="max-width:100%;height:auto;border-radius:10px;" />
+    <figcaption style="font-size:14px;color:#6b7280;font-style:italic;margin-top:8px;">$735k cycled across three fraud‑like shells — and a concrete next investigative step.</figcaption>
+  </figure>
+
+  <h2 style="color:#7c3aed;margin-top:32px;">Build it — step by step</h2>
+  <ol>
+    <li><strong>Model the money</strong> as <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">accounts</code> (with a profile <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">VECTOR</code>) and <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">transfers</code> (the edges).</li>
+    <li><strong>Find cycles</strong> with the recursive query (or <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">GRAPH_TABLE</code> if you have the privilege).</li>
+    <li><strong>Score</strong> each account against <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">known_fraud</code> profiles with <code style="background:#ece7fb;padding:1px 6px;border-radius:4px;">VECTOR_DISTANCE</code>.</li>
+    <li><strong>Rank</strong> rings whose members are fraud‑like, and summarise the top one.</li>
+  </ol>
+  <pre style="background:#1b1830;color:#e7e2f5;padding:14px;border-radius:10px;overflow:auto;font-size:13.5px;"><code>pip install -r requirements.txt
+copy .env.example .env          # OPENAI_API_KEY + ORACLE_MCP_CONNECTION
+python src/seed.py              # accounts, transfers, known-fraud profiles (+embeddings)
+python src/detect.py            # cycles + vector scoring + LLM summary of the top ring
+streamlit run src/dashboard.py  # view detected rings</code></pre>
+
+  <h2 style="color:#7c3aed;margin-top:32px;">Why it matters</h2>
+  <ul>
+    <li><strong>Two weak signals make one strong one.</strong> Structure catches the pattern; vectors cut the false positives — without leaving SQL.</li>
+    <li><strong>No separate graph database.</strong> The relationships, the vectors, and the transactions are all in Oracle 26ai.</li>
+    <li><strong>Read‑only and auditable.</strong> The agent only investigates — through the <strong>SQLcl MCP Server</strong>, with a saved connection and an audit trail.</li>
+  </ul>
+
+  <p style="background:#f3effe;border-radius:8px;padding:12px 16px;font-size:15px;">📦 <strong>Full code on GitHub:</strong> <a href="https://github.com/khadayatepa/graph-fraud-rings" style="color:#7c3aed;">github.com/khadayatepa/graph-fraud-rings</a></p>
+
+  <div style="background:#f3effe;border-radius:10px;padding:16px 20px;margin-top:24px;font-size:16px;">
+    <strong style="color:#7c3aed;">About the author</strong><br>
+    <strong>Prashant Khadayate</strong> is an <strong>Oracle ACE</strong> focused on the Oracle AI Database (26ai), AI Vector Search, and the SQLcl MCP Server. Connect on <a href="https://www.linkedin.com/in/prashant-khadayate-1a8b0b97/" style="color:#7c3aed;">LinkedIn</a> for more hands-on Oracle AI experiments.
+  </div>
+  <p style="font-size:13px;color:#9ca3af;margin-top:14px;">A learning demo on synthetic data — not a real AML system.</p>
+
+</div>

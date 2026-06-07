@@ -1,0 +1,8 @@
+# Theme: graph "investigation" — dark + violet (distinct from the other demos).
+[theme]
+base = "dark"
+primaryColor = "#a855f7"
+backgroundColor = "#15131f"
+secondaryBackgroundColor = "#211c30"
+textColor = "#ece9f5"
+font = "sans serif"
