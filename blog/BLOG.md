@@ -8,6 +8,7 @@
 
 - **Tech stack:** Oracle 26ai recursive SQL (cycle detection) · AI Vector Search · SQLcl MCP
 - **Database:** Oracle AI Database 26ai — 23.26.2.2.0 (Autonomous Database)
+- **Prerequisites:** SQLcl 25.2+ (MCP), Python 3.10+, an OpenAI API key
 - **Best for:** Detecting fraud rings / circular money flows in transactional data, enriched with vector similarity.
 - **Level:** Advanced
 
