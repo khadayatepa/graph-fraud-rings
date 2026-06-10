@@ -4,6 +4,14 @@
 
 ---
 
+**📋 At a glance**
+
+- **Tech stack:** Oracle 26ai recursive SQL (cycle detection) · AI Vector Search · SQLcl MCP
+- **Database:** Oracle AI Database 26ai — 23.26.2.2.0 (Autonomous Database)
+- **Best for:** Detecting fraud rings / circular money flows in transactional data, enriched with vector similarity.
+- **Level:** Advanced
+
+
 A single suspicious transfer rarely proves much. A **ring** — money moving A→B→C→A in round-number hops — is a classic laundering pattern. But one signal alone gives false positives: plenty of legitimate businesses pay each other in loops. So I combine **two** signals in Oracle 26ai: the *structure* (a cycle in the transfer graph) and the *semantics* (do these accounts read like known fraud?).
 
 ![A detected ring: Shell → Quartz → Nimbus → Shell moving $250k/$245k/$240k in a loop; all three close to known fraud (~0.3-0.4), legit accounts far (~0.6-0.7)](ring-graph.png)

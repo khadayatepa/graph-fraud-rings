@@ -16,7 +16,15 @@
     <figcaption style="font-size:14px;color:#6b7280;font-style:italic;margin-top:8px;">The cycle is the structure; the distances are the semantics. Both point at the same three accounts.</figcaption>
   </figure>
 
-  <h2 style="color:#7c3aed;margin-top:32px;">Signal 1 — find the cycles (recursive SQL)</h2>
+    <div style="background:#f6f8fa;border:1px solid #e6eaef;border-left:4px solid #7c3aed;border-radius:10px;padding:14px 18px;margin:20px 0;font-size:15px;color:#243240;">
+    <div style="font-weight:800;margin-bottom:8px;color:#0f172a;">📋 At a glance</div>
+    <div style="margin:3px 0;"><strong>Tech stack:</strong> Oracle 26ai recursive SQL (cycle detection) · AI Vector Search · SQLcl MCP</div>
+    <div style="margin:3px 0;"><strong>Database:</strong> Oracle AI Database 26ai — 23.26.2.2.0 (Autonomous Database)</div>
+    <div style="margin:3px 0;"><strong>Best for:</strong> Detecting fraud rings / circular money flows in transactional data, enriched with vector similarity.</div>
+    <div style="margin:3px 0;"><strong>Level:</strong> Advanced</div>
+  </div>
+
+<h2 style="color:#7c3aed;margin-top:32px;">Signal 1 — find the cycles (recursive SQL)</h2>
   <p>A recursive query walks the transfer graph and keeps any path that returns to where it started. It runs as any user — no special privilege:</p>
   <pre style="background:#1b1830;color:#e7e2f5;padding:15px;border-radius:10px;overflow:auto;font-size:13px;"><code>WITH paths (start_acct, cur_acct, depth, pth) AS (
   SELECT from_acct, to_acct, 1, '-'||from_acct||'-'||to_acct||'-' FROM transfers
