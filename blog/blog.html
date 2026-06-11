@@ -77,7 +77,28 @@ streamlit run src/dashboard.py  # view detected rings</code></pre>
     <li><strong>Read‑only and auditable.</strong> The agent only investigates — through the <strong>SQLcl MCP Server</strong>, with a saved connection and an audit trail.</li>
   </ul>
 
-  <p style="background:#f3effe;border-radius:8px;padding:12px 16px;font-size:15px;">📦 <strong>Full code on GitHub:</strong> <a href="https://github.com/khadayatepa/graph-fraud-rings" style="color:#7c3aed;">github.com/khadayatepa/graph-fraud-rings</a></p>
+    <h2 style="color:#7c3aed;margin-top:32px;">🛠️ Do it yourself — step by step (manual SQL)</h2>
+  <p>Find circular money flows by hand — a recursive query needs no special privilege; the property‑graph version needs the graph privilege.</p>
+  <p><strong>1) Detect cycles with a recursive query (no special privilege)</strong></p>
+  <pre style="background:#0f172a;color:#e2e8f0;padding:13px;border-radius:9px;overflow:auto;font-size:12.5px;"><code>WITH paths (start_acct, cur_acct, depth, pth) AS (
+  SELECT from_acct, to_acct, 1, '-'||from_acct||'-'||to_acct||'-' FROM transfers
+  UNION ALL
+  SELECT p.start_acct, t.to_acct, p.depth+1, p.pth||t.to_acct||'-'
+  FROM paths p JOIN transfers t ON t.from_acct = p.cur_acct
+  WHERE p.depth &lt; 5
+    AND (t.to_acct = p.start_acct OR INSTR(p.pth, '-'||t.to_acct||'-') = 0))
+SELECT pth FROM paths WHERE cur_acct = start_acct;   -- rows that close the loop</code></pre>
+  <p><strong>2) The same with SQL property graph (if you have the privilege)</strong></p>
+  <pre style="background:#0f172a;color:#e2e8f0;padding:13px;border-radius:9px;overflow:auto;font-size:12.5px;"><code>SELECT * FROM GRAPH_TABLE (money
+  MATCH (a)-[]-&gt;(b)-[]-&gt;(c)-[]-&gt;(a)
+  COLUMNS (a.name, b.name, c.name));</code></pre>
+  <p><strong>3) Rank accounts by similarity to known fraud (vector distance)</strong></p>
+  <pre style="background:#0f172a;color:#e2e8f0;padding:13px;border-radius:9px;overflow:auto;font-size:12.5px;"><code>SELECT a.name,
+       MIN(VECTOR_DISTANCE(a.embedding, k.embedding, COSINE)) AS fraud_dist
+FROM   accounts a, known_fraud k
+GROUP  BY a.name ORDER BY fraud_dist;   -- ring members ~0.3-0.4, legit ~0.6-0.7</code></pre>
+
+<p style="background:#f3effe;border-radius:8px;padding:12px 16px;font-size:15px;">📦 <strong>Full code on GitHub:</strong> <a href="https://github.com/khadayatepa/graph-fraud-rings" style="color:#7c3aed;">github.com/khadayatepa/graph-fraud-rings</a></p>
 
   <div style="background:#f3effe;border-radius:10px;padding:16px 20px;margin-top:24px;font-size:16px;">
     <strong style="color:#7c3aed;">About the author</strong><br>

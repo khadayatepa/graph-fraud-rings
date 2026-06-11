@@ -83,6 +83,41 @@ streamlit run src/dashboard.py  # view detected rings
 - **No separate graph database.** The relationships, the vectors, and the transactions are all in Oracle 26ai.
 - **Read-only and auditable.** The agent only investigates — through the **SQLcl MCP Server**, with a saved connection and an audit trail.
 
+## 🛠️ Do it yourself — step by step (manual SQL)
+
+Find circular money flows by hand — a recursive query needs no special privilege; the property‑graph version needs the graph privilege.
+
+**1) Detect cycles with a recursive query (no special privilege)**
+
+```sql
+WITH paths (start_acct, cur_acct, depth, pth) AS (
+  SELECT from_acct, to_acct, 1, '-'||from_acct||'-'||to_acct||'-' FROM transfers
+  UNION ALL
+  SELECT p.start_acct, t.to_acct, p.depth+1, p.pth||t.to_acct||'-'
+  FROM paths p JOIN transfers t ON t.from_acct = p.cur_acct
+  WHERE p.depth < 5
+    AND (t.to_acct = p.start_acct OR INSTR(p.pth, '-'||t.to_acct||'-') = 0))
+SELECT pth FROM paths WHERE cur_acct = start_acct;   -- rows that close the loop
+```
+
+**2) The same with SQL property graph (if you have the privilege)**
+
+```sql
+SELECT * FROM GRAPH_TABLE (money
+  MATCH (a)-[]->(b)-[]->(c)-[]->(a)
+  COLUMNS (a.name, b.name, c.name));
+```
+
+**3) Rank accounts by similarity to known fraud (vector distance)**
+
+```sql
+SELECT a.name,
+       MIN(VECTOR_DISTANCE(a.embedding, k.embedding, COSINE)) AS fraud_dist
+FROM   accounts a, known_fraud k
+GROUP  BY a.name ORDER BY fraud_dist;   -- ring members ~0.3-0.4, legit ~0.6-0.7
+```
+
+
 📦 **Full code on GitHub:** [github.com/khadayatepa/graph-fraud-rings](https://github.com/khadayatepa/graph-fraud-rings)
 
 ---
